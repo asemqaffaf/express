@@ -40,9 +40,6 @@ const validatePassword = (password) => {
   return regex.test(password);
 };
 
-app.get('/', function (req, res) {
-	res.status(200).send('<h1>Hello</h1>');
-});
 
 app.post('/signup', (req, res) => {
   const { user_id, password } = req.body;
