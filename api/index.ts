@@ -13,6 +13,14 @@ app.use(express.json());
 // let users: User[] = [];
 let users = [];
 
+// Add the reserved test user
+users.push({
+  user_id: 'TaroYamada',
+  password: 'PaSSwd4TY',
+  nickname: 'TaroYamada',
+  comment: ''
+});
+
 // Helper function to validate user_id
 const validateUserId = (userId) => {
   if (!userId || typeof userId !== 'string' || userId.length < 6 || userId.length > 20) {
@@ -104,7 +112,9 @@ app.get('/users/:user_id', (req, res) => {
     return res.status(404).json({ message: 'No user found' });
   }
 
-  if (user.user_id !== auth_user_id || user.password !== auth_password) {
+  // Check if the authenticated user exists and has correct password
+  const authUser = users.find(u => u.user_id === auth_user_id && u.password === auth_password);
+  if (!authUser) {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
@@ -185,9 +195,14 @@ app.post('/close', (req, res) => {
     const [auth_user_id, auth_password] = credentials.split(':');
 
     const userIndex = users.findIndex(u => u.user_id === auth_user_id);
+    
+    if (userIndex === -1) {
+        return res.status(401).json({ message: 'Authentication Failed' });
+    }
+    
     const user = users[userIndex];
-
-    if (!user || user.password !== auth_password) {
+    
+    if (user.password !== auth_password) {
         return res.status(401).json({ message: 'Authentication Failed' });
     }
 
