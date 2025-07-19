@@ -1,7 +1,49 @@
-const express = require('express');
+import express, { Request, Response } from 'express';
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
+
 const app = express();
 
 app.use(express.json());
+
+const swaggerOptions = {
+  swaggerDefinition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'User API',
+      version: '1.0.0',
+      description: 'A simple Express User API',
+    },
+    servers: [
+      {
+        url: 'http://localhost:3000',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        basicAuth: {
+          type: 'http',
+          scheme: 'basic',
+        },
+      },
+    },
+    security: [
+      {
+        basicAuth: [],
+      },
+    ],
+    tags: [
+      {
+        name: 'Users',
+        description: 'API for users'
+      }
+    ]
+  },
+  apis: ['api/index.ts'],
+};
+
+const swaggerDocs = swaggerJsdoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 let users = [
   {
@@ -11,9 +53,8 @@ let users = [
     comment: '',
   },
 ];
-
 // Helper function to validate user_id
-const validateUserId = (userId) => {
+const validateUserId = (userId: string | any[]) => {
   if (!userId || typeof userId !== 'string' || userId.length < 6 || userId.length > 20) {
     return false;
   }
@@ -22,7 +63,7 @@ const validateUserId = (userId) => {
 };
 
 // Helper function to validate password
-const validatePassword = (password) => {
+const validatePassword = (password: string | any[]) => {
   if (!password || typeof password !== 'string' || password.length < 8 || password.length > 20) {
     return false;
   }
@@ -31,7 +72,49 @@ const validatePassword = (password) => {
   return regex.test(password);
 };
 
-app.post('/signup', (req, res) => {
+/**
+ * @swagger
+ * /signup:
+ *   post:
+ *     summary: Create a new user account
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - user_id
+ *               - password
+ *             properties:
+ *               user_id:
+ *                 type: string
+ *                 description: User ID (6-20 characters, alphanumeric)
+ *               password:
+ *                 type: string
+ *                 description: Password (8-20 characters, ASCII)
+ *     responses:
+ *       200:
+ *         description: Account successfully created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     user_id:
+ *                       type: string
+ *                     nickname:
+ *                       type: string
+ *       400:
+ *         description: Account creation failed
+ */
+app.post('/signup', (req: Request, res: Response) => {
   const { user_id, password } = req.body;
 
   // Check if user_id and password are provided
@@ -73,7 +156,7 @@ app.post('/signup', (req, res) => {
   };
   users.push(newUser);
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'Account successfully created',
     user: {
       user_id: newUser.user_id,
@@ -82,7 +165,46 @@ app.post('/signup', (req, res) => {
   });
 });
 
-app.get('/users/:user_id', (req, res) => {
+/**
+ * @swagger
+ * /users/{user_id}:
+ *   get:
+ *     summary: Get user details by user_id
+ *     tags: [Users]
+ *     security:
+ *       - basicAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: User details by user_id
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     user_id:
+ *                       type: string
+ *                     nickname:
+ *                       type: string
+ *                     comment:
+ *                       type: string
+ *       401:
+ *         description: Authentication Failed
+ *       404:
+ *         description: No user found
+ */
+app.get('/users/:user_id', (req: Request, res: Response) => {
   const { user_id } = req.params;
   const authHeader = req.headers.authorization;
 
@@ -90,7 +212,11 @@ app.get('/users/:user_id', (req, res) => {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
-  const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString('ascii');
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication Failed' });
+  }
+  const credentials = Buffer.from(token, 'base64').toString('ascii');
   const [auth_user_id, auth_password] = credentials.split(':');
 
   const user = users.find((u) => u.user_id === user_id);
@@ -105,7 +231,7 @@ app.get('/users/:user_id', (req, res) => {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'User details by user_id',
     user: {
       user_id: user.user_id,
@@ -115,7 +241,61 @@ app.get('/users/:user_id', (req, res) => {
   });
 });
 
-app.patch('/users/:user_id', (req, res) => {
+/**
+ * @swagger
+ * /users/{user_id}:
+ *   patch:
+ *     summary: Update user details
+ *     tags: [Users]
+ *     security:
+ *       - basicAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: user_id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: The user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nickname:
+ *                 type: string
+ *                 description: New nickname (max 30 characters)
+ *               comment:
+ *                 type: string
+ *                 description: New comment (max 100 characters)
+ *     responses:
+ *       200:
+ *         description: User successfully updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     nickname:
+ *                       type: string
+ *                     comment:
+ *                       type: string
+ *       400:
+ *         description: User updation failed
+ *       401:
+ *         description: Authentication Failed
+ *       403:
+ *         description: No Permission for Update
+ *       404:
+ *         description: No User found
+ */
+app.patch('/users/:user_id', (req: Request, res: Response) => {
   const { user_id } = req.params;
   const authHeader = req.headers.authorization;
   const { nickname, comment } = req.body;
@@ -131,7 +311,11 @@ app.patch('/users/:user_id', (req, res) => {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
-  const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString('ascii');
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication Failed' });
+  }
+  const credentials = Buffer.from(token, 'base64').toString('ascii');
   const [auth_user_id, auth_password] = credentials.split(':');
 
   if (user_id !== auth_user_id) {
@@ -162,7 +346,7 @@ app.patch('/users/:user_id', (req, res) => {
     user.comment = comment;
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'User successfully updated',
     user: {
       nickname: user.nickname,
@@ -171,14 +355,32 @@ app.patch('/users/:user_id', (req, res) => {
   });
 });
 
-app.post('/close', (req, res) => {
+/**
+ * @swagger
+ * /close:
+ *   post:
+ *     summary: Close/delete a user account
+ *     tags: [Users]
+ *     security:
+ *       - basicAuth: []
+ *     responses:
+ *       200:
+ *         description: Account and user successfully removed
+ *       401:
+ *         description: Authentication Failed
+ */
+app.post('/close', (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Basic ')) {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
-  const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString('ascii');
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication Failed' });
+  }
+  const credentials = Buffer.from(token, 'base64').toString('ascii');
   const [auth_user_id, auth_password] = credentials.split(':');
 
   const userIndex = users.findIndex((u) => u.user_id === auth_user_id);
@@ -189,17 +391,17 @@ app.post('/close', (req, res) => {
 
   const user = users[userIndex];
 
-  if (user.password !== auth_password) {
+  if (user?.password !== auth_password) {
     return res.status(401).json({ message: 'Authentication Failed' });
   }
 
   users.splice(userIndex, 1);
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'Account and user successfully removed',
   });
 });
 
 app.listen(3000, () => console.log('Server ready on port 3000.'));
 
-module.exports = app;
+export default app;
